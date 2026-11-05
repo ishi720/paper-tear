@@ -2,8 +2,21 @@
 // unit: 'piece' (one image per piece) | 'paper' (one per source paper) | 'desk' (one image of everything)
 import { drawPiece, pieceBounds } from './desk.js';
 
+/** @typedef {import('./desk.js').Desk} Desk */
+/** @typedef {import('./desk.js').Piece} Piece */
+/** @typedef {import('./desk.js').Bounds} Bounds */
+/** @typedef {{name: string, pieces: Piece[], bounds: Bounds}} ExportJob 書き出す1ファイル分 */
+/** @typedef {{name: string, blob: Blob, url: string, w: number, h: number}} ExportImage 書き出した画像。url は object URL */
+
+/** 書き出す画像の長辺の上限（ピクセル） */
 const MAX_SIDE = 4096;
 
+/**
+ * ピースの外接矩形をすべて含む矩形に、余白を足して返す。
+ * @param {Piece[]} list
+ * @param {number} margin 余白
+ * @returns {Bounds}
+ */
 function union(list, margin) {
   const b = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
   for (const p of list) {
@@ -13,13 +26,21 @@ function union(list, margin) {
   return { x0: b.x0 - margin, y0: b.y0 - margin, x1: b.x1 + margin, y1: b.y1 + margin };
 }
 
-/** "papertear_20261104-1130" — shared prefix so one export's files sort together. */
+/**
+ * 書き出すファイル名の共通の頭（例: "papertear_20261104-1130"）。同じ回に書き出したファイルが並ぶようにする。
+ * @returns {string}
+ */
 function stamp() {
   const d = new Date(), z = (n) => String(n).padStart(2, '0');
   return `papertear_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`;
 }
 
-/** What would be written out, without rendering anything. */
+/**
+ * 書き出すファイルの一覧を作る。描画はしないので、枚数の表示にも使える。
+ * @param {Desk} desk
+ * @param {'piece'|'paper'|'desk'} unit 書き出しの単位
+ * @returns {ExportJob[]}
+ */
 export function planExport(desk, unit) {
   const list = desk.pieces.slice();
   if (!list.length) return [];
@@ -37,6 +58,12 @@ export function planExport(desk, unit) {
   return [{ name: `${pre}_desk.png`, pieces: list, bounds: union(list, 24) }];
 }
 
+/**
+ * 1ファイル分のピースを PNG に描く。長辺が MAX_SIDE を超えるときは縮小する。
+ * @param {ExportJob} job
+ * @param {string|null} background 背景色。null なら透明
+ * @returns {Promise<ExportImage>}
+ */
 function render(job, background) {
   const { x0, y0, x1, y1 } = job.bounds, w = x1 - x0, h = y1 - y0;
   const k = Math.min(1, MAX_SIDE / Math.max(w, h));
@@ -49,6 +76,12 @@ function render(job, background) {
   return new Promise((res) => c.toBlob((blob) => res({ name: job.name, blob, url: URL.createObjectURL(blob), w: c.width, h: c.height }), 'image/png'));
 }
 
+/**
+ * 机の上のピースを PNG 画像に書き出す。
+ * @param {Desk} desk
+ * @param {{unit: 'piece'|'paper'|'desk', background: 'none'|'white'|'desk'}} opts 書き出しの単位と背景
+ * @returns {Promise<ExportImage[]>}
+ */
 export function exportImages(desk, { unit, background }) {
   const desktop = getComputedStyle(document.documentElement).getPropertyValue('--desk').trim();
   const bg = background === 'desk' ? desktop : background === 'white' ? '#ffffff' : null;

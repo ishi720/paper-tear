@@ -4,12 +4,21 @@
 // <a download> link is used.
 
 let cap;
+/**
+ * claude.ai の downloads 機能を取得する。結果は1回目の呼び出しで決まり、以降は使い回す。
+ * @returns {Promise<{save: (opts: {filename: string, data: Blob}) => Promise<void>}|null>} 使えない環境では null
+ */
 function downloads() {
   if (cap === undefined) cap = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
   return cap;
 }
 
-/** Resolves true when saved, false when the viewer declined. Throws on real failures. */
+/**
+ * ファイルを保存する。downloads 機能があればそれを使い、なければ <a download> でダウンロードする。
+ * @param {string} filename ファイル名
+ * @param {Blob} blob 中身
+ * @returns {Promise<boolean>} 保存したら true、見る人が断ったら false。それ以外の失敗は例外を投げる
+ */
 export async function saveFile(filename, blob) {
   const d = await downloads();
   if (d) {
@@ -30,18 +39,28 @@ export async function saveFile(filename, blob) {
 
 /* ---------- a minimal ZIP writer (stored, no compression: PNGs are already compressed) ---------- */
 
+/** CRC-32 の計算表 */
 const CRC = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
   return t;
 })();
+/**
+ * ZIP に書き込む CRC-32 を計算する。
+ * @param {Uint8Array} buf
+ * @returns {number}
+ */
 function crc32(buf) {
   let c = 0xffffffff;
   for (let i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** files: [{name, blob}] -> Blob (application/zip) */
+/**
+ * 無圧縮の ZIP を作る。ファイル名は UTF-8 で書き込む。
+ * @param {{name: string, blob: Blob}[]} files
+ * @returns {Promise<Blob>} application/zip の Blob
+ */
 export async function makeZip(files) {
   const enc = new TextEncoder(), parts = [], central = [];
   const d = new Date();

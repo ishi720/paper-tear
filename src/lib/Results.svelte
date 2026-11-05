@@ -5,6 +5,10 @@
   let status = $state('');
   let busy = $state(false);
 
+  /**
+   * 保存処理を実行し、結果を status に出す。実行中は次の保存を受け付けない。
+   * @param {() => Promise<boolean>} job 保存したら true、断られたら false を返す処理
+   */
   async function run(job) {
     if (busy) return;
     busy = true; status = '';
@@ -17,7 +21,12 @@
         : '保存できませんでした。もう一度試してください。';
     } finally { busy = false; }
   }
+  /**
+   * 画像を1枚保存する。
+   * @param {{name: string, blob: Blob}} im
+   */
   const saveOne = (im) => run(() => saveFile(im.name, im.blob));
+  /** すべての画像を ZIP にまとめて保存する。 */
   const saveAll = () => run(async () => {
     const zip = await makeZip(images);
     return saveFile(images[0].name.replace(/_(piece|paper)-[^_]*\.png$/, '') + '.zip', zip);

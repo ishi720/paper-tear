@@ -19,17 +19,26 @@
   let results = $state(null);
   let notice = $state('');
 
+  /** エンジンの状態を画面用の値に写す。机の中身が変わるたびに呼ばれる。 */
   function sync() {
     papers = engine.papers.map((p) => ({ id: p.id, thumb: p.thumb }));
     canUndo = engine.canUndo;
     version++;
   }
 
+  /**
+   * ヒント欄にお知らせを3.5秒だけ出す。
+   * @param {string} text
+   */
   function say(text) {
     notice = text;
     setTimeout(() => { if (notice === text) notice = ''; }, 3500);
   }
 
+  /**
+   * 画像ファイルを紙として机に追加する。上限を超えた分や読めなかったときは、お知らせで伝える。
+   * @param {FileList|File[]|null} list
+   */
   async function addFiles(list) {
     const files = [...(list || [])].filter((f) => f.type.startsWith('image/'));
     if (!files.length) return;
@@ -46,9 +55,11 @@
     return engine && exporting ? planExport(engine, unit).length : 0;
   });
 
+  /** 今の設定で書き出し、結果画面を開く。 */
   async function runExport() {
     results = await exportImages(engine, { unit, background });
   }
+  /** 結果画面を閉じ、画像の object URL を解放する。 */
   function closeResults() {
     for (const im of results || []) URL.revokeObjectURL(im.url);
     results = null;
@@ -61,6 +72,10 @@
         : '紙の上をなぞると、その線に沿って破れます。重なったピースや隣の紙もまとめて破れます。')
   );
 
+  /**
+   * キー操作。Ctrl / ⌘ + Z で元に戻し、Esc で結果画面を閉じる。
+   * @param {KeyboardEvent} e
+   */
   function onKey(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); engine?.undo(); }
     if (e.key === 'Escape' && results) closeResults();
