@@ -86,7 +86,7 @@
   <canvas
     bind:this={canvas}
     class:erase={mode === 'erase'}
-    aria-label={mode === 'erase' ? '写真を置いた机。ピースをタップすると消えます' : '写真を置いた机。なぞると破れます'}
+    aria-label={mode === 'erase' ? '紙を置いた机。ピースをタップすると消えます' : '紙を置いた机。なぞると破れます'}
     onpointerdown={onDown}
     onpointermove={onMove}
     onpointerup={onUp}
@@ -94,6 +94,6 @@
     onpointerleave={(e) => { if (e.pointerType === 'mouse' && !down && engine) setHover(null); }}
   ></canvas>
   {#if empty}
-    <p class="empty">写真がありません。<br />「＋ 追加」から写真を入れるか、ここにドロップしてください。</p>
+    <p class="empty">紙がありません。<br />「＋ 追加」から紙を入れるか、ここにドロップしてください。</p>
   {/if}
 </div>

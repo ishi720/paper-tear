@@ -1,5 +1,5 @@
 // Turns pieces on the desk into PNG images.
-// unit: 'piece' (one image per piece) | 'photo' (one per source photo) | 'desk' (one image of everything)
+// unit: 'piece' (one image per piece) | 'paper' (one per source paper) | 'desk' (one image of everything)
 import { drawPiece, pieceBounds } from './desk.js';
 
 const MAX_SIDE = 4096;
@@ -28,11 +28,11 @@ export function planExport(desk, unit) {
     const w = String(list.length).length < 2 ? 2 : String(list.length).length;
     return list.map((p, i) => ({ name: `${pre}_piece-${String(i + 1).padStart(w, '0')}.png`, pieces: [p], bounds: pieceBounds(p) }));
   }
-  if (unit === 'photo') {
-    return desk.photos
-      .map((ph, i) => ({ i, pieces: list.filter((p) => p.ph === ph) }))
+  if (unit === 'paper') {
+    return desk.papers
+      .map((paper, i) => ({ i, pieces: list.filter((p) => p.paper === paper) }))
       .filter((g) => g.pieces.length)
-      .map((g) => ({ name: `${pre}_photo-${g.i + 1}.png`, pieces: g.pieces, bounds: union(g.pieces, 16) }));
+      .map((g) => ({ name: `${pre}_paper-${g.i + 1}.png`, pieces: g.pieces, bounds: union(g.pieces, 16) }));
   }
   return [{ name: `${pre}_desk.png`, pieces: list, bounds: union(list, 24) }];
 }

@@ -20,7 +20,7 @@
   const saveOne = (im) => run(() => saveFile(im.name, im.blob));
   const saveAll = () => run(async () => {
     const zip = await makeZip(images);
-    return saveFile(images[0].name.replace(/_(piece|photo)-[^_]*\.png$/, '') + '.zip', zip);
+    return saveFile(images[0].name.replace(/_(piece|paper)-[^_]*\.png$/, '') + '.zip', zip);
   });
 </script>
 

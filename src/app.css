@@ -1,4 +1,4 @@
-/* Layout: one-screen desk. Top bar (title, tools), photo strip, hint,
+/* Layout: one-screen desk. Top bar (title, tools), paper strip, hint,
    then the desk canvas fills the rest with the export panel docked at the right (below it on phones). */
 :root {
   --desk: #d6dce0;
@@ -54,7 +54,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--stamp); outl
 .check input { accent-color: var(--stamp); }
 input[type="file"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 
-/* photo strip */
+/* paper strip */
 .strip { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding-block: 10px 8px; scrollbar-width: thin; }
 .thumb { position: relative; margin: 0; flex: none; }
 .thumb img {

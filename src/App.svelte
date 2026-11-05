@@ -1,13 +1,13 @@
 <script>
   import DeskView from './lib/DeskView.svelte';
-  import PhotoStrip from './lib/PhotoStrip.svelte';
+  import PaperStrip from './lib/PaperStrip.svelte';
   import ExportPanel from './lib/ExportPanel.svelte';
   import Results from './lib/Results.svelte';
-  import { MAX_PHOTOS, loadFile } from './lib/desk.js';
+  import { MAX_PAPERS, loadFile } from './lib/desk.js';
   import { planExport, exportImages } from './lib/exporter.js';
 
   let engine = $state(null);
-  let photos = $state([]);
+  let papers = $state([]);
   let canUndo = $state(false);
   let version = $state(0);
 
@@ -20,7 +20,7 @@
   let notice = $state('');
 
   function sync() {
-    photos = engine.photos.map((p) => ({ id: p.id, thumb: p.thumb }));
+    papers = engine.papers.map((p) => ({ id: p.id, thumb: p.thumb }));
     canUndo = engine.canUndo;
     version++;
   }
@@ -33,12 +33,12 @@
   async function addFiles(list) {
     const files = [...(list || [])].filter((f) => f.type.startsWith('image/'));
     if (!files.length) return;
-    const room = MAX_PHOTOS - engine.photos.length;
-    if (room <= 0) { say(`写真は${MAX_PHOTOS}枚まで置けます。どれかを削除してから追加してください。`); return; }
+    const room = MAX_PAPERS - engine.papers.length;
+    if (room <= 0) { say(`紙は${MAX_PAPERS}枚まで置けます。どれかを削除してから追加してください。`); return; }
     const canvases = (await Promise.all(files.slice(0, room).map((f) => loadFile(f, border)))).filter(Boolean);
     if (!canvases.length) { say('画像を読み込めませんでした。JPEG か PNG で試してください。'); return; }
     engine.add(canvases);
-    if (files.length > room) say(`写真は${MAX_PHOTOS}枚まで置けるので、${room}枚だけ追加しました。`);
+    if (files.length > room) say(`紙は${MAX_PAPERS}枚まで置けるので、${room}枚だけ追加しました。`);
   }
 
   const jobCount = $derived.by(() => {
@@ -58,7 +58,7 @@
     notice ||
       (mode === 'erase'
         ? '消したいピースをタップすると、そのピースが消えます。間違えたら「元に戻す」で戻せます。'
-        : '写真の上をなぞると、その線に沿って破れます。重なったピースや隣の写真もまとめて破れます。')
+        : '紙の上をなぞると、その線に沿って破れます。重なったピースや隣の紙もまとめて破れます。')
   );
 
   function onKey(e) {
@@ -82,12 +82,12 @@
   </div>
 </header>
 
-<PhotoStrip {photos} max={MAX_PHOTOS} onadd={addFiles} onremove={(id) => engine.remove(id)} />
+<PaperStrip {papers} max={MAX_PAPERS} onadd={addFiles} onremove={(id) => engine.remove(id)} />
 
 <p class="hint" class:alert={!!notice}>{hint}</p>
 
 <div class="work">
-  <DeskView bind:engine {mode} empty={!photos.length} onchange={sync} onfiles={addFiles} />
+  <DeskView bind:engine {mode} empty={!papers.length} onchange={sync} onfiles={addFiles} />
   {#if exporting}
     <ExportPanel
       bind:unit
