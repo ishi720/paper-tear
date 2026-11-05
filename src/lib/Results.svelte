@@ -7,18 +7,16 @@
 
   /**
    * 保存処理を実行し、結果を status に出す。実行中は次の保存を受け付けない。
-   * @param {() => Promise<boolean>} job 保存したら true、断られたら false を返す処理
+   * @param {() => void | Promise<void>} job 保存する処理
    */
   async function run(job) {
     if (busy) return;
     busy = true; status = '';
     try {
-      const ok = await job();
-      status = ok ? '保存しました。' : '保存をやめました。';
-    } catch (e) {
-      status = e?.code === 'rate_limited' ? '保存の確認が開いています。閉じてからもう一度押してください。'
-        : e?.code === 'unavailable' || e?.code === 'not_granted' ? 'この画面では保存できません。Claude のアプリかブラウザで開き直してください。'
-        : '保存できませんでした。もう一度試してください。';
+      await job();
+      status = 'ダウンロードしました。';
+    } catch {
+      status = '保存できませんでした。もう一度試してください。';
     } finally { busy = false; }
   }
   /**

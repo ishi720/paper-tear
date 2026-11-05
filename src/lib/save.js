@@ -1,40 +1,15 @@
-// Saving files with a proper name.
-// Inside a claude.ai artifact the page cannot start downloads itself, so it asks the viewer
-// through the `downloads` capability. Anywhere else (npm run dev, your own site) a normal
-// <a download> link is used.
-
-let cap;
-/**
- * claude.ai の downloads 機能を取得する。結果は1回目の呼び出しで決まり、以降は使い回す。
- * @returns {Promise<{save: (opts: {filename: string, data: Blob}) => Promise<void>}|null>} 使えない環境では null
- */
-function downloads() {
-  if (cap === undefined) cap = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
-  return cap;
-}
+// Saving files with a proper name, and a minimal ZIP writer.
 
 /**
- * ファイルを保存する。downloads 機能があればそれを使い、なければ <a download> でダウンロードする。
+ * ファイル名を付けてダウンロードさせる。
  * @param {string} filename ファイル名
  * @param {Blob} blob 中身
- * @returns {Promise<boolean>} 保存したら true、見る人が断ったら false。それ以外の失敗は例外を投げる
  */
-export async function saveFile(filename, blob) {
-  const d = await downloads();
-  if (d) {
-    try {
-      await d.save({ filename, data: blob });
-      return true;
-    } catch (e) {
-      if (e?.code === 'declined') return false;
-      throw e;
-    }
-  }
+export function saveFile(filename, blob) {
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  return true;
 }
 
 /* ---------- a minimal ZIP writer (stored, no compression: PNGs are already compressed) ---------- */

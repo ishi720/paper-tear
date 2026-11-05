@@ -19,4 +19,4 @@ npm run build    # dist/index.html に1ファイルでビルド
 - `src/lib/Results.svelte` 書き出した画像の一覧
 - `src/lib/desk.js` 破るアルゴリズムと描画エンジン（Svelte に依存しない素の JS）
 - `src/lib/exporter.js` 書き出し処理（単位：ピース／紙／机全体）
-- `src/lib/save.js` 名前を付けて保存（claude.ai では downloads 機能、それ以外では通常のダウンロード）と ZIP 作成
+- `src/lib/save.js` 名前を付けてダウンロードと ZIP 作成
