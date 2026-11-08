@@ -8,7 +8,11 @@
 
   let engine = $state(null);
   let papers = $state([]);
+  let selected = $state(null);
+  let seenTouch = 0;
   let canUndo = $state(false);
+  let canRedo = $state(false);
+  let canReset = $state(false);
   let version = $state(0);
 
   let mode = $state('tear');
@@ -18,12 +22,28 @@
   let results = $state(null);
   let notice = $state('');
 
-  /** エンジンの状態を画面用の値に写す。机の中身が変わるたびに呼ばれる。 */
+  /**
+   * エンジンの状態を画面用の値に写す。机の中身が変わるたびに呼ばれる。
+   * 追加・破る・消すをした紙を選び直し、選んでいた紙が削除されたら最後の紙を選ぶ。
+   */
   function sync() {
     papers = engine.papers.map((p) => ({ id: p.id, thumb: p.thumb }));
-    canUndo = engine.canUndo;
+    if (engine.touched.seq !== seenTouch) { seenTouch = engine.touched.seq; selected = engine.touched.paperId; }
+    if (!papers.some((p) => p.id === selected)) selected = papers.at(-1)?.id ?? null;
+    refresh();
     version++;
   }
+  /** 選んでいる紙について、3つのボタンを押せるかを更新する。 */
+  function refresh() {
+    canUndo = engine.canUndo(selected);
+    canRedo = engine.canRedo(selected);
+    canReset = engine.canReset(selected);
+  }
+  /**
+   * 紙を選ぶ。
+   * @param {number} id 紙の id
+   */
+  function select(id) { selected = id; refresh(); }
 
   /**
    * ヒント欄にお知らせを3.5秒だけ出す。
@@ -67,16 +87,20 @@
   const hint = $derived(
     notice ||
       (mode === 'erase'
-        ? '消したいピースをタップすると、そのピースが消えます。間違えたら「元に戻す」で戻せます。'
+        ? '消したいピースをタップすると、そのピースが消えます。間違えたら「一つ戻す」で戻せます。'
         : '紙の上をなぞると、その線に沿って破れます。重なったピースや隣の紙もまとめて破れます。')
   );
 
   /**
-   * キー操作。Ctrl / ⌘ + Z で元に戻し、Esc で結果画面を閉じる。
+   * キー操作。Ctrl / ⌘ + Z で一つ戻し、Ctrl / ⌘ + Shift + Z か Ctrl + Y で一つ進め、Esc で結果画面を閉じる。
    * @param {KeyboardEvent} e
    */
   function onKey(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); engine?.undo(); }
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); engine?.undo(selected); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); engine?.redo(selected); }
+    }
     if (e.key === 'Escape' && results) closeResults();
   }
 </script>
@@ -90,12 +114,14 @@
       <button aria-pressed={mode === 'tear'} onclick={() => (mode = 'tear')}>破る</button>
       <button aria-pressed={mode === 'erase'} class:erase-on={mode === 'erase'} onclick={() => (mode = 'erase')}>ピースを消す</button>
     </div>
-    <button class="btn" id="undo" disabled={!canUndo} onclick={() => engine.undo()}>元に戻す</button>
+    <button class="btn" id="undo" disabled={!canUndo} onclick={() => engine.undo(selected)}>一つ戻す</button>
+    <button class="btn" id="redo" disabled={!canRedo} onclick={() => engine.redo(selected)}>一つ進める</button>
+    <button class="btn" id="reset" disabled={!canReset} onclick={() => engine.reset(selected)}>元に戻す</button>
     <button class="btn" class:on={exporting} aria-pressed={exporting} onclick={() => (exporting = !exporting)}>画像にする</button>
   </div>
 </header>
 
-<PaperStrip {papers} max={MAX_PAPERS} onadd={addFiles} onremove={(id) => engine.remove(id)} />
+<PaperStrip {papers} {selected} max={MAX_PAPERS} onselect={select} onadd={addFiles} onremove={(id) => engine.remove(id)} />
 
 <p class="hint" class:alert={!!notice}>{hint}</p>
 

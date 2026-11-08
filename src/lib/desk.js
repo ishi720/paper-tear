@@ -21,6 +21,8 @@ export const MAX_PAPERS = 12;
  * @property {number|null} hy 机の上での定位置（左上のy）
  * @property {number} rot0 置いたときの傾き（ラジアン）
  * @property {string} thumb サムネイルの data URL
+ * @property {{pieces: Piece[], hx: number, hy: number}[]} history この紙の「一つ戻す」用の履歴
+ * @property {{pieces: Piece[], hx: number, hy: number}[]} future この紙の「一つ進める」用の履歴
  */
 
 /**
@@ -95,7 +97,7 @@ function makePaper(c) {
   }
   const th = 96, tw = Math.round((W * th) / H), t = document.createElement('canvas');
   t.width = tw; t.height = th; t.getContext('2d').drawImage(c, 0, 0, tw, th);
-  return { id: ++uid, img: c, W, H, sx, sy, hx: null, hy: null, rot0: 0, thumb: t.toDataURL('image/jpeg', 0.8) };
+  return { id: ++uid, img: c, W, H, sx, sy, hx: null, hy: null, rot0: 0, thumb: t.toDataURL('image/jpeg', 0.8), history: [], future: [] };
 }
 
 /**
@@ -330,7 +332,9 @@ export class Desk {
    */
   constructor(canvas, onChange) {
     this.cv = canvas; this.ctx = canvas.getContext('2d'); this.onChange = onChange;
-    this.papers = []; this.pieces = []; this.history = [];
+    this.papers = []; this.pieces = [];
+    /** @type {{paperId: number|null, seq: number}} 最後に追加・破る・消すをした紙。seq は操作のたびに増える。画面の選択を合わせるのに使う */
+    this.touched = { paperId: null, seq: 0 };
     this.view = { s: 1, ox: 0, oy: 0 }; this.box = { x0: 0, y0: 0, x1: 1, y1: 1 };
     this.cw = 0; this.ch = 0; this.dpr = 1; this.animating = false;
     this.overlay = { stroke: null, hover: null };
@@ -339,41 +343,109 @@ export class Desk {
   /** 変更を onChange に知らせる。 */
   emit() { this.onChange && this.onChange(); }
 
-  /* history: every undoable change saves the paper list, home positions and pieces */
+  /* history: kept per paper. Each entry is that paper's pieces plus its home position at the time */
   /**
-   * 元に戻すための今の状態を作る。
-   * @returns {{papers: Paper[], homes: (number|null)[][], pieces: Piece[], box: Bounds}}
+   * id から紙を探す。
+   * @param {number|null} paperId
+   * @returns {Paper|undefined}
    */
-  snapshot() {
-    return {
-      papers: this.papers.slice(), homes: this.papers.map((p) => [p.hx, p.hy]),
-      pieces: this.pieces.map((p) => ({ ...p, anim: null })), box: { ...this.box },
-    };
+  paperById(paperId) { return this.papers.find((p) => p.id === paperId); }
+  /**
+   * 紙1枚分の今の状態を作る。動いている途中のピースは動き終わった位置で記録する。
+   * @param {Paper} paper
+   * @returns {{pieces: Piece[], hx: number, hy: number}}
+   */
+  snapshot(paper) {
+    const pieces = this.pieces.filter((p) => p.paper === paper)
+      .map((p) => (p.anim ? { ...p, tx: p.anim.t[0], ty: p.anim.t[1], rot: p.anim.t[2], anim: null } : { ...p }));
+    return { pieces, hx: paper.hx, hy: paper.hy };
   }
-  /** 今の状態を履歴に積む。履歴は最大40件。 */
-  save() { this.history.push(this.snapshot()); if (this.history.length > 40) this.history.shift(); }
-  /** 元に戻せる履歴があるか。 */
-  get canUndo() { return this.history.length > 0; }
-  /** 直前の状態に戻す。 */
-  undo() {
-    const s = this.history.pop(); if (!s) return;
-    this.papers = s.papers; s.papers.forEach((p, i) => { p.hx = s.homes[i][0]; p.hy = s.homes[i][1]; });
-    this.pieces = s.pieces; this.box = s.box;
-    this.fit(); this.draw(); this.emit();
+  /**
+   * 紙の状態を、その紙の履歴に積む。履歴は紙ごとに最大40件。新しい操作をしたので「一つ進める」の履歴は捨てる。
+   * @param {Paper} paper
+   * @param {ReturnType<Desk['snapshot']>} [snap] 積む状態。省略すると今の状態
+   */
+  save(paper, snap = this.snapshot(paper)) {
+    paper.history.push(snap); if (paper.history.length > 40) paper.history.shift();
+    paper.future = [];
+  }
+  /**
+   * その紙で一つ戻せる履歴があるか。
+   * @param {number|null} paperId
+   */
+  canUndo(paperId) { return !!this.paperById(paperId)?.history.length; }
+  /**
+   * その紙で一つ進められる履歴があるか。
+   * @param {number|null} paperId
+   */
+  canRedo(paperId) { return !!this.paperById(paperId)?.future.length; }
+  /**
+   * その紙を直前の状態に戻す。
+   * @param {number|null} paperId
+   */
+  undo(paperId) {
+    const paper = this.paperById(paperId), s = paper?.history.pop(); if (!s) return;
+    paper.future.push(this.snapshot(paper));
+    this.restore(paper, s);
+  }
+  /**
+   * その紙で「一つ戻す」で取り消した操作をやり直す。
+   * @param {number|null} paperId
+   */
+  redo(paperId) {
+    const paper = this.paperById(paperId), s = paper?.future.pop(); if (!s) return;
+    paper.history.push(this.snapshot(paper));
+    this.restore(paper, s);
+  }
+  /**
+   * 紙の履歴の状態を机に反映する。そのあと紙が並べ直されていたら、その分ずらす。
+   * 重なり順は、その紙の今のピースがあった位置を保つ。
+   * @param {Paper} paper
+   * @param {ReturnType<Desk['snapshot']>} s
+   */
+  restore(paper, s) {
+    const dx = paper.hx - s.hx, dy = paper.hy - s.hy;
+    const restored = s.pieces.map((p) => ({ ...p, tx: p.tx + dx, ty: p.ty + dy }));
+    const at = this.pieces.findIndex((p) => p.paper === paper);
+    const rest = this.pieces.filter((p) => p.paper !== paper);
+    const pos = at < 0 ? rest.length : this.pieces.slice(0, at).filter((p) => p.paper !== paper).length;
+    rest.splice(pos, 0, ...restored);
+    this.pieces = rest;
+    this.overlay.hover = null;
+    this.draw(); this.emit();
+  }
+  /**
+   * その紙に破ったり消したりしたピースがあるか（元に戻せるか）。
+   * @param {number|null} paperId
+   */
+  canReset(paperId) {
+    const paper = this.paperById(paperId); if (!paper) return false;
+    const own = this.pieces.filter((p) => p.paper === paper);
+    return own.length !== 1 || own[0].cons.length > 0;
+  }
+  /**
+   * その紙を、破る前の1枚の状態に戻す。この操作も「一つ戻す」で取り消せる。
+   * @param {number|null} paperId
+   */
+  reset(paperId) {
+    if (!this.canReset(paperId)) return;
+    const paper = this.paperById(paperId);
+    this.save(paper);
+    this.restore(paper, { pieces: [whole(paper)], hx: paper.hx, hy: paper.hy });
   }
 
   /**
    * 紙を机に追加して並べ直す。MAX_PAPERS を超える分は無視する。
+   * 履歴は紙ごとなので、追加しても「一つ戻す」で紙が消えることはない。
    * @param {HTMLCanvasElement[]} canvases 紙の画像
-   * @param {{record?: boolean}} [opts] record が false なら履歴に残さない
    * @returns {number} 追加した枚数
    */
-  add(canvases, { record = true } = {}) {
+  add(canvases) {
     const list = canvases.slice(0, MAX_PAPERS - this.papers.length);
     if (!list.length) return 0;
-    if (record) this.save();
     for (const c of list) {
       const paper = makePaper(c);
+      this.touched = { paperId: paper.id, seq: this.touched.seq + 1 };
       paper.rot0 = this.papers.length ? (Math.random() - 0.5) * 0.06 : 0;
       this.papers.push(paper);
     }
@@ -388,25 +460,21 @@ export class Desk {
    */
   remove(paperId) {
     if (!this.papers.some((p) => p.id === paperId)) return;
-    this.save();
     this.papers = this.papers.filter((p) => p.id !== paperId);
     this.pieces = this.pieces.filter((p) => p.paper.id !== paperId);
     this.arrange(); this.fit(); this.draw(); this.emit();
   }
 
   /**
-   * ピースを1つ消す。最後のピースが消えた紙は机からも取り除く。
+   * ピースを1つ消す。ピースが全部なくなっても紙は机に残し、「一つ戻す」「元に戻す」で戻せるようにする。
    * @param {number} pieceId ピースの id
    */
   removePiece(pieceId) {
     const p = this.pieces.find((q) => q.id === pieceId);
     if (!p) return;
-    this.save();
+    this.save(p.paper);
+    this.touched = { paperId: p.paper.id, seq: this.touched.seq + 1 };
     this.pieces = this.pieces.filter((q) => q !== p);
-    if (!this.pieces.some((q) => q.paper === p.paper)) {
-      this.papers = this.papers.filter((paper) => paper !== p.paper);
-      this.arrange(); this.fit();
-    }
     if (this.overlay.hover === pieceId) this.overlay.hover = null;
     this.draw(); this.emit();
   }
@@ -486,7 +554,7 @@ export class Desk {
     let len = 0;
     for (let i = 1; i < world.length; i++) len += Math.hypot(world[i][0] - world[i - 1][0], world[i][1] - world[i - 1][1]);
     if (len * this.view.s < 24) return;
-    const snap = this.snapshot(), out = []; let changed = false;
+    const snaps = new Map(), out = [];
     for (const p of this.pieces) {
       let hit = false;
       for (let i = 0; i < world.length && !hit; i += 2) { const l = toLocal(p, ...world[i]); hit = insideLocal(p, l[0], l[1]); }
@@ -497,17 +565,19 @@ export class Desk {
       for (const i of p.idx) (inPoly(p.paper.sx[i], p.paper.sy[i], cut.pos.outer) ? A : B).push(i);
       const min = Math.max(4, p.idx.length * 0.015);
       if (A.length < min || B.length < min) { out.push(p); continue; }
+      if (!snaps.has(p.paper)) snaps.set(p.paper, this.snapshot(p.paper));
       const a = this.child(p, cut.pos, A), b = this.child(p, cut.neg, B);
       const ca = toWorld(a, a.px, a.py), cb = toWorld(b, b.px, b.py);
       const [ux, uy] = unit(ca[0] - cb[0], ca[1] - cb[1]), gap = 9 / this.view.s;
       const tilt = ((0.6 + Math.random() * 1.8) * Math.PI) / 180;
       this.animate(a, a.tx + ux * gap, a.ty + uy * gap, a.rot + tilt);
       this.animate(b, b.tx - ux * gap, b.ty - uy * gap, b.rot - tilt * 0.7);
-      out.push(b, a); changed = true;
+      out.push(b, a);
     }
-    if (changed) {
-      this.pieces = out; this.history.push(snap);
-      if (this.history.length > 40) this.history.shift();
+    if (snaps.size) {
+      this.pieces = out;
+      for (const [paper, snap] of snaps) this.save(paper, snap);
+      this.touched = { paperId: [...snaps.keys()].pop().id, seq: this.touched.seq + 1 };
       this.emit();
     }
   }

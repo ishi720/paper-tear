@@ -55,6 +55,8 @@ input[type="file"] { position: absolute; opacity: 0; width: 1px; height: 1px; po
 /* paper strip */
 .strip { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding-block: 10px 8px; scrollbar-width: thin; }
 .thumb { position: relative; margin: 0; flex: none; }
+.pick { display: block; padding: 0; border: 0; background: none; border-radius: 3px; cursor: pointer; }
+.pick[aria-pressed="true"] { outline: 2px solid var(--stamp); outline-offset: 2px; }
 .thumb img {
   display: block; height: 52px; width: auto; max-width: 96px; object-fit: cover; border-radius: 3px;
   box-shadow: 0 1px 2px #0003, 0 3px 8px #0002;
