@@ -12,7 +12,6 @@
   let version = $state(0);
 
   let mode = $state('tear');
-  let border = $state(true);
   let exporting = $state(false);
   let unit = $state('piece');
   let background = $state('none');
@@ -44,7 +43,7 @@
     if (!files.length) return;
     const room = MAX_PAPERS - engine.papers.length;
     if (room <= 0) { say(`紙は${MAX_PAPERS}枚まで置けます。どれかを削除してから追加してください。`); return; }
-    const canvases = (await Promise.all(files.slice(0, room).map((f) => loadFile(f, border)))).filter(Boolean);
+    const canvases = (await Promise.all(files.slice(0, room).map(loadFile))).filter(Boolean);
     if (!canvases.length) { say('画像を読み込めませんでした。JPEG か PNG で試してください。'); return; }
     engine.add(canvases);
     if (files.length > room) say(`紙は${MAX_PAPERS}枚まで置けるので、${room}枚だけ追加しました。`);
@@ -91,7 +90,6 @@
       <button aria-pressed={mode === 'tear'} onclick={() => (mode = 'tear')}>破る</button>
       <button aria-pressed={mode === 'erase'} class:erase-on={mode === 'erase'} onclick={() => (mode = 'erase')}>ピースを消す</button>
     </div>
-    <label class="check"><input type="checkbox" id="border" bind:checked={border} />白フチ</label>
     <button class="btn" id="undo" disabled={!canUndo} onclick={() => engine.undo()}>元に戻す</button>
     <button class="btn" class:on={exporting} aria-pressed={exporting} onclick={() => (exporting = !exporting)}>画像にする</button>
   </div>

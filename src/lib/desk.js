@@ -3,7 +3,7 @@
 // "side of a tear line" constraints, drawn by stacking canvas clip() calls.
 
 const G = 52;                // sample grid per paper (G x G points)
-const PAPER_COLOR = '#fbf9f3'; // paper colour (white border and torn core)
+const PAPER_COLOR = '#fbf9f3'; // paper colour (torn core and transparent areas)
 const MAXS = 1100;           // longest side a paper is scaled down to
 
 /** 机に置ける紙の最大枚数 */
@@ -55,34 +55,29 @@ let uid = 0;
 /* ---------- source images ---------- */
 
 /**
- * 画像を長辺 MAXS 以下に縮小し、必要なら白いふちを付けたキャンバスを作る。
+ * 画像を長辺 MAXS 以下に縮小したキャンバスを作る。透明部分は紙の色で埋める。
  * @param {HTMLImageElement|HTMLCanvasElement} src 元の画像
- * @param {boolean} border true なら短辺の4%の白いふちを付ける
  * @returns {HTMLCanvasElement}
  */
-export function framedCanvas(src, border) {
+function paperCanvas(src) {
   const k = Math.min(1, MAXS / Math.max(src.width, src.height));
-  const w = Math.round(src.width * k), h = Math.round(src.height * k);
-  const b = border ? Math.round(Math.min(w, h) * 0.04) : 0;
   const c = document.createElement('canvas');
-  c.width = w + b * 2; c.height = h + b * 2;
+  c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
   const g = c.getContext('2d');
   g.fillStyle = PAPER_COLOR; g.fillRect(0, 0, c.width, c.height);
-  g.drawImage(src, b, b, w, h);
-  if (b) { g.strokeStyle = '#0000000f'; g.strokeRect(b + 0.5, b + 0.5, w - 1, h - 1); }
+  g.drawImage(src, 0, 0, c.width, c.height);
   return c;
 }
 
 /**
  * 画像ファイルを読み込み、紙用のキャンバスにする。
  * @param {File} file 画像ファイル
- * @param {boolean} border 白いふちを付けるか
  * @returns {Promise<HTMLCanvasElement|null>} 読み込めなかったときは null
  */
-export function loadFile(file, border) {
+export function loadFile(file) {
   return new Promise((res) => {
     const url = URL.createObjectURL(file), im = new Image();
-    im.onload = () => { URL.revokeObjectURL(url); res(framedCanvas(im, border)); };
+    im.onload = () => { URL.revokeObjectURL(url); res(paperCanvas(im)); };
     im.onerror = () => { URL.revokeObjectURL(url); res(null); };
     im.src = url;
   });

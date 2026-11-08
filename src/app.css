@@ -50,8 +50,6 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 1.05rem; letter
 .btn:disabled { opacity: .4; cursor: default; }
 .btn.on, .btn.primary { background: var(--stamp); color: var(--stamp-ink); border-color: transparent; }
 button:focus-visible, label:focus-within { outline: 2px solid var(--stamp); outline-offset: 2px; }
-.check { font-size: .85rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.check input { accent-color: var(--stamp); }
 input[type="file"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 
 /* paper strip */
