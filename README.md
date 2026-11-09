@@ -13,7 +13,7 @@ npm run build    # dist/index.html に1ファイルでビルド
 ## 構成
 
 - `src/App.svelte` 画面全体と状態（追加・削除・元に戻す・書き出しの設定）
-- `src/lib/DeskView.svelte` 机のキャンバスと操作（破る／タップで選ぶ／四角で囲む）
+- `src/lib/DeskView.svelte` 机のキャンバスと操作（なぞって破る／タップで消す）
 - `src/lib/PaperStrip.svelte` 紙の一覧、追加と削除
 - `src/lib/ExportPanel.svelte` 「画像にする」の単位・範囲・背景
 - `src/lib/Results.svelte` 書き出した画像の一覧
